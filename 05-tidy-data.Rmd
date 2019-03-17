@@ -29,7 +29,7 @@ We will have a look at two packages that you will most likely need most in your 
 ```{r}
 library(tidyverse)
 library(lubridate)
-library(here)
+library(here) # lubridate has function called here too, therefore we need to load here library last
 ```
 
 ### readr
@@ -44,8 +44,7 @@ Most of readr's functions are concerned with turning flat files into data frames
 The first argument to read_csv() is the most important: it's the path to the file to read.
 
 ```{r}
-# oops, lubridate has here too...
-index <- read_csv(file = here::here("data/consumer_index.csv"))
+index <- read_csv(file = here("data/consumer_index.csv"))
 index
 ```
 
@@ -89,7 +88,8 @@ read_csv("# A comment I want to skip
 
 Real-life example:
 ```{r}
-(rba <- read_csv(here::here("data/ECIS_141022_MFT_2_RbA.csv")))
+rba <- read_csv(here("data/ECIS_141022_MFT_2_RbA.csv"))
+rba
 ```
 
 So what's the problem?
@@ -102,22 +102,27 @@ This real-life example bring us to the another common issue with csv tables:
 2. __The data might not have column names__ You can use col_names = FALSE to tell read_csv() not to treat the first row as headings, and instead label them sequentially from X1 to Xn:
 
 In this example, we have only values, with no apparent column names. Note that base R does not allow numeric column names! In base R, read.csv prepends numerics with X and converts to string. read.csv does not allow string input or data, input must be file path.
+
 ```{r}
 read_csv("1,2,3\n4,5,6", col_names = FALSE)
 ```
+
 Alternatively you can pass col_names a character vector which will be used as the column names:
+
 ```{r}
 read_csv("1,2,3\n4,5,6", col_names = c("x", "y", "z"))
 ```
 
-Another option that commonly needs tweaking is na: this specifies the value (or values) that are used to represent missing values in your file:
+Another option that commonly needs tweaking is NA: this specifies the value (or values) that are used to represent missing values in your file:
+
 ```{r}
 read_csv("a,b,c\n1,2,.", na = ".")
 ```
 
 Now we really have to have a look at the file. So it seems that file header, first 21 colums contain various experimental metadata and [Data] start at line 24. Let's skip first 23 lines and we don't have a header then:
+
 ```{r}
-(rba <- read_csv(here::here("data/ECIS_141022_MFT_2_RbA.csv"), 
+(rba <- read_csv(here("data/ECIS_141022_MFT_2_RbA.csv"), 
                  skip = 23, 
                  col_names = FALSE))
 ```
@@ -125,22 +130,32 @@ Now we really have to have a look at the file. So it seems that file header, fir
 Ok, now we have a rectangular table with 318 rows and 481 columns. Now we need to add also column titles... I think the column titles are in rows 19 and 20 with 382 columns. Let's import this range from our .csv file: 
 
 ```{r}
-(rba_tit <- read_csv("data/ECIS_141022_MFT_2_RbA.csv", skip = 18, n_max = 964, col_names = FALSE))
+(rba_tit <- read_csv("data/ECIS_141022_MFT_2_RbA.csv", 
+                     skip = 18, 
+                     n_max = 964, 
+                     col_names = FALSE))
 ```
 
-Ups! readr leaves us high and dry with this...because there is no easy way to specify how much 
+Ups! readr  does not help much because there is no easy way to specify how many rows to read...
+
+We need to use base R read.csv instead to get those row names columns:
 
 ```{r}
-(headers <- read.csv(here::here("data/ECIS_141022_MFT_2_RbA.csv"), 
+headers <- read.csv(here("data/ECIS_141022_MFT_2_RbA.csv"), 
                      skip = 19, 
                      header = FALSE, 
                      nrows = 2, 
-                     stringsAsFactors = FALSE))
+                     stringsAsFactors = FALSE)
 ```
 
+We have NA_NA at the end, which needs to be removed and, additionally, we have leading spaces in both strings:
+
 ```{r}
-headers_merged <- paste(headers[2,], headers[1,], sep = "_")
-head(headers_merged) # we have NA_NA at the end, which needs to be removed
+headers_merged <- str_c(
+  str_trim(headers[2,]), 
+  str_trim(headers[1,]), 
+  sep = "_")
+head(headers_merged)
 ```
 
 These colnames need some work but we can use them already right now:
@@ -174,13 +189,28 @@ If you've used R before, you might wonder why we're not using read.csv(). There 
 ```
 
 5. Identify what is wrong with each of the following inline CSV files. What happens when you run the code?
+
 ```{r}
 read_csv("a,b\n1,2,3\n4,5,6")
+```
+
+```{r}
 read_csv("a,b,c\n1,2\n1,2,3,4")
+```
+
+```{r}
 read_csv("a,b\n\"1")
+```
+
+```{r}
 read_csv("a,b\n1,2\na,b")
+```
+
+
+```{r}
 read_csv("a;b\n1;3")
 ```
+
 
 ## readxl
 The  package makes it easy to get data out of Excel and into R. Compared to many of the existing packages (e.g. gdata, xlsx, xlsReadWrite) readxl has no external dependencies, so it's easy to install and use on all operating systems. It is designed to work with tabular data.
@@ -199,27 +229,55 @@ While read_excel() auto detects the format from the file extension, read_xls() a
 
 Let's have a look at the sheets:
 ```{r}
-(sheets <- excel_sheets(here::here("data/ECIS_141022_MFT_1.xlsx")))
+sheets <- excel_sheets(here("data/ECIS_141022_MFT_1.xlsx"))
+sheets
 ```
 
 You need to import one sheet at the time:
 ```{r}
-(z_500 <- read_excel(here::here("data/ECIS_141022_MFT_1.xlsx"), 
-                     sheet = "Z 500 Hz"))
+z_500 <- read_excel(here("data/ECIS_141022_MFT_1.xlsx"), 
+                     sheet = "Z 500 Hz")
+z_500
 ```
 
 ```{r, eval = FALSE}
-(z <- read_excel(here::here("data/ECIS_141022_MFT_1.xlsx"), 
+(z <- read_excel(here("data/ECIS_141022_MFT_1.xlsx"), 
                  sheet = 3:5))
 ```
 
 
 To import multiple sheets, e.g. sheets 3 to 5:
 ```{r}
-mft <- map(sheets[3:5], ~ read_excel(here::here("data/ECIS_141022_MFT_1.xlsx"), sheet = .x))
-names(mft) <- sheets[3:5]
+sheets_three_to_five <- sheets[3:5]
+sheets_three_to_five
+```
+
+You can use map() function from purrr package:
+
+```{r}
+mft <- map(sheets_three_to_five, 
+           ~read_excel(path = here("data/ECIS_141022_MFT_1.xlsx"), sheet = .x))
+mft
+```
+
+map function outputs list of data frames. 
+
+We can coerse this list of data frames into one single data_frame easily because currently they have all same set of variables (columns):
+
+In order to make a difference between observations from these three tables, we can assign parameter names to list names, which subsequent function, that binds these data frames, can recognize and automatically use as values for new variable:
+
+Assign names to list:
+```{r}
+names(mft) <- sheets_three_to_five
+```
+
+
+Bind data frames in list by rows, .id argument specifies column name for variable that helps to keep track which observation comes from which table:
+
+```{r}
 bind_rows(mft, .id = "Param")
 ```
+
 
 ## Tidy data
 
@@ -269,7 +327,7 @@ Typically a dataset will only suffer from one of these problems; it'll only suff
 A common problem is a dataset where some of the column names are not names of variables, but values of a variable. 
 
 ```{r}
-(salary <- read_excel(here::here("data/keskmine_brutokuupalk.xls"), 
+(salary <- read_excel(here("data/keskmine_brutokuupalk.xls"), 
                     skip = 4))
 colnames(salary)[1] <- "month"
 salary
@@ -294,7 +352,7 @@ Note that "2005" to "2017" are non-syntactic names (because they don’t start w
 
 Let's merge wage data with average price per m^2 from transactions data:
 ```{r}
-trans <- read_csv(here::here("data/transactions.csv"))
+trans <- read_csv(here("data/transactions.csv"))
 trans
 ```
 
