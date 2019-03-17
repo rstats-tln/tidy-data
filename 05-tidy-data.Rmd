@@ -41,7 +41,7 @@ Most of readr's functions are concerned with turning flat files into data frames
 - read_tsv() reads _tab_ delimited files, and 
 - read_delim() reads in files with _any delimiter_. 
 
-The first argument to read_csv() is the most important: it's the path to the file to read.
+The first argument to read_csv() is most important: it's the path to the file to read.
 
 ```{r}
 index <- read_csv(file = here("data/consumer_index.csv"))
@@ -122,47 +122,43 @@ read_csv("a,b,c\n1,2,.", na = ".")
 Now we really have to have a look at the file. So it seems that file header, first 21 colums contain various experimental metadata and [Data] start at line 24. Let's skip first 23 lines and we don't have a header then:
 
 ```{r}
-(rba <- read_csv(here("data/ECIS_141022_MFT_2_RbA.csv"), 
+rba <- read_csv(here("data/ECIS_141022_MFT_2_RbA.csv"), 
                  skip = 23, 
-                 col_names = FALSE))
+                 col_names = FALSE)
 ```
 
-Ok, now we have a rectangular table with 318 rows and 481 columns. Now we need to add also column titles... I think the column titles are in rows 19 and 20 with 382 columns. Let's import this range from our .csv file: 
+Ok, now we have a rectangular table with 318 rows and 481 columns. Now we need to add also column titles... 
+
+Column titles are in rows 20 and 21: 
 
 ```{r}
-(rba_tit <- read_csv("data/ECIS_141022_MFT_2_RbA.csv", 
-                     skip = 18, 
-                     n_max = 964, 
-                     col_names = FALSE))
-```
-
-Ups! readr  does not help much because there is no easy way to specify how many rows to read...
-
-We need to use base R read.csv instead to get those row names columns:
-
-```{r}
-headers <- read.csv(here("data/ECIS_141022_MFT_2_RbA.csv"), 
+rba_tit <- read_csv(here("data/ECIS_141022_MFT_2_RbA.csv"), 
                      skip = 19, 
-                     header = FALSE, 
-                     nrows = 2, 
-                     stringsAsFactors = FALSE)
+                     n_max = 964, 
+                     col_names = FALSE)
+rba_tit
 ```
 
-We have NA_NA at the end, which needs to be removed and, additionally, we have leading spaces in both strings:
+Ups! readr does not help much because there is no easy way to specify how many rows to read, argument n_max specifies.
+
+Let's use read_lines() function instead to get those row names columns:
 
 ```{r}
-headers_merged <- str_c(
-  str_trim(headers[2,]), 
-  str_trim(headers[1,]), 
-  sep = "_")
-head(headers_merged)
+headers <- read_lines(here("data/ECIS_141022_MFT_2_RbA.csv"), 
+                     skip = 19,
+                     n_max = 2)
+headers
 ```
 
-These colnames need some work but we can use them already right now:
 ```{r}
-colnames(rba) <- head(headers_merged, -1) # we skip last value
+headers <- str_split(headers, ",")
+params <- str_trim(headers[[1]])
+wells <- str_trim(headers[[2]])
+new_heades <- str_c(wells, params, sep = "_")
+colnames(rba) <- new_heades[-1]
 rba
 ```
+
 
 ### Compared to base R
 
@@ -327,9 +323,11 @@ Typically a dataset will only suffer from one of these problems; it'll only suff
 A common problem is a dataset where some of the column names are not names of variables, but values of a variable. 
 
 ```{r}
-(salary <- read_excel(here("data/keskmine_brutokuupalk.xls"), 
-                    skip = 4))
-colnames(salary)[1] <- "month"
+salary <- read_excel(here("data/keskmine_brutokuupalk.xls"), 
+                    skip = 4)
+# First column name is missing, we can assign new name to 1st column like so or alternatively use rename()
+salary
+salary <- rename(salary, month_est = X__1)
 salary
 ```
 Above table: the column names 2005 etc represent values of the year variable, and each row represents more than one observation, not one.
@@ -378,9 +376,9 @@ For this let's create first lookup table where we map month names to numbers:
 months <- tibble(month = 1:12, 
                  month_est = c("Jaanuar", "Veebruar", "Märts", "Aprill", "Mai", "Juuni", "Juuli", "August", "September", "Oktoober", "November", "Detsember"))
 salary_tidy <- salary_tidy %>% 
-  rename(month_est = month) %>% 
   left_join(months) %>% 
   select(year, month, salary)
+salary_tidy
 ```
 
 
