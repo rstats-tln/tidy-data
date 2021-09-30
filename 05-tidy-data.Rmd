@@ -1,6 +1,6 @@
 ---
 title: "Data import and tidy data"
-date: "2018-04-16"
+date: "2021-09-30"
 output: github_document
 ---
 
@@ -318,44 +318,38 @@ This means for most real analyses, you'll need to do some tidying. The first ste
 
 Typically a dataset will only suffer from one of these problems; it'll only suffer from both if you're really unlucky! To fix these problems, you'll need the two most important functions in tidyr: gather() and spread().
 
-## Gathering
+## Reshaping dataset
 
-A common problem is a dataset where some of the column names are not names of variables, but values of a variable. 
+A common problem is a dataset where some of the column names are not names of variables, but values of a variable (wide data). 
 
 ```{r}
 salary <- read_excel(here("data/keskmine_brutokuupalk.xls"), 
                     skip = 4)
 # First column name is missing, we can assign new name to 1st column like so or alternatively use rename()
 salary
-salary <- rename(salary, month_est = X__1)
+salary <- rename(salary, month_est = ...1)
 salary
 ```
 Above table: the column names 2005 etc represent values of the year variable, and each row represents more than one observation, not one.
 
-To tidy a dataset like this, we need to gather those columns into a new pair of variables. To describe that operation we need three parameters:
+To tidy a dataset like this, we need to gather those columns into a new pair of variables.
 
-1. The set of columns that represent values, not variables. In this example, those are the columns starting from 2005.
-
-2. The name of the variable whose values form the column names. I call that the key, and here it is "Aasta" (year).
-
-3. The name of the variable whose values are spread over the cells. I call that value, and here it's the average bruto salary.
-
-Together those parameters generate the call to gather():
+Fir this we can use `pivot_longer()` function:
 ```{r}
-(salary_tidy <- salary %>% 
-  gather(starts_with("20"), key = "year", value = "salary"))
+salary_tidy <- salary %>% 
+  pivot_longer(cols = starts_with("20"), names_to = "year")
+salary_tidy
 ```
 
-Note that "2005" to "2017" are non-syntactic names (because they don’t start with a letter) so we have to surround them with backticks.
 
-Let's merge wage data with average price per m^2 from transactions data:
+Let's merge salay data with average price per m^2 from transactions data:
 ```{r}
 trans <- read_csv(here("data/transactions.csv"))
 trans
 ```
 
 
-To combine the tidied versions of wages and transactions into a single tibble, we need to use dplyr::left_join()
+To combine the tidied versions of salary and transactions into a single tibble, we need to use dplyr::left_join()
 ```{r}
 price_per_month <- trans %>% 
    mutate(year = year(Kuu),
@@ -377,7 +371,7 @@ months <- tibble(month = 1:12,
                  month_est = c("Jaanuar", "Veebruar", "Märts", "Aprill", "Mai", "Juuni", "Juuli", "August", "September", "Oktoober", "November", "Detsember"))
 salary_tidy <- salary_tidy %>% 
   left_join(months) %>% 
-  select(year, month, salary)
+  select(year, month, value)
 salary_tidy
 ```
 
@@ -404,7 +398,7 @@ What looks like the relationship between real estate price and average salary:
 
 ```{r}
 salary_and_prices %>% 
-  ggplot(aes(x = salary, y = av_price)) +
+  ggplot(aes(x = value, y = av_price)) +
   geom_point(aes(colour = factor(year))) +
   geom_smooth()
 ```
@@ -419,14 +413,16 @@ Spreading is the opposite of gathering.
 You use it when an observation is scattered across multiple rows. 
 
 For example, take following table: an observation is a month in a year, but each observation is spread across two rows.
-
 ```{r}
-(sp <- salary_and_prices %>% 
+sp <- salary_and_prices %>% 
   filter(year == 2017, between(month, 1, 3)) %>% 
-  gather(key, value, c("salary", "av_price")))
+  pivot_longer(cols = c("value", "av_price"))
+sp
 ```
 
-To tidy this up, we first analyse the representation in similar way to gather(). This time, however, we only need two parameters:
+To tidy this up, we first analyse the representation in similar way to pivot_longer(). 
+
+This time, however, we only need two parameters:
 
 1. The column that contains variable names, the key column.
 
@@ -434,14 +430,15 @@ To tidy this up, we first analyse the representation in similar way to gather().
 
 We need to place each key into separate column.
 ```{r}
-spread(sp, key, value)
+pivot_wider(sp, names_from = name, values_from = value)
 ```
 
-Missing observations are filledin with NA-s:
+Missing observations are filled in with NA-s:
 ```{r}
 sp_month_missing <- sp[-6, ] # here we remove on observation
 sp_month_missing
-sp_month_missing %>% spread(key, value)
+sp_month_missing %>% 
+  pivot_wider(names_from = name, values_from = value)
 ```
 
 
@@ -456,20 +453,20 @@ Complement of separate() is unite(), which you use if a single variable is sprea
 Let's make example table:
 ```{r}
 Rb <- rba %>% 
-   select(`Well ID_Time (hrs)`, contains("Rb"))
+   select(contains("Rb"))
 ```
 
 Here we have well id and parameter in the key column and we need to have them as separate columns:
 
 ```{r}
-Rb_tidy <- gather(Rb, key, value, contains("Rb"))
+Rb_tidy <- pivot_longer(Rb, cols = contains("Rb"))
 Rb_tidy
 ```
 
 We need to specify separator separating these two values, by default separate uses non alphanumeric characters for splitting up string, but here we have multiple..:
 ```{r}
 Rb_separated <- Rb_tidy %>% 
-   separate(key, into = c("well", "parameter"), sep = "_")
+   separate(name, into = c("well", "parameter"), sep = "_")
 Rb_separated
 ```
 
